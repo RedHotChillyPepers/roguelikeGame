@@ -6,11 +6,10 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.MapObject;
+import com.badlogic.gdx.maps.objects.TextureMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
@@ -32,9 +31,7 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		for (MapObject object : gameobjects.getObjects()) {
 			switch(object.getName()) {
 				case "Player":
-					Texture texture = new Texture("spritesheet.png");
-					TextureRegion tr = new TextureRegion(texture, 64, 128, 16, 16);
-					player = new Player(object, tr);
+					player = new Player((TextureMapObject) object);
 					break;
 				default:
 					break;
@@ -57,6 +54,7 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 	
 	@Override
 	public void dispose () {
+		tiledMap.dispose();
 		tiledMapRenderer.dispose();
 	}
 
@@ -67,10 +65,13 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 			return true;
 		} else if (keycode == Input.Keys.D) {
 			player.setX(player.getX() + 16 * 3);
+			return true;
 		} else if (keycode == Input.Keys.W) {
 			player.setY(player.getY() + 16 * 3);
+			return true;
 		} else if (keycode == Input.Keys.S) {
 			player.setY(player.getY() - 16 * 3);
+			return true;
 		}
 		return false;
 	}
