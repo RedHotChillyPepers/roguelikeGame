@@ -9,13 +9,14 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.MapObject;
+import com.badlogic.gdx.maps.objects.PolylineMapObject;
 import com.badlogic.gdx.maps.objects.RectangleMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
-import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.neanth.game.Config;
@@ -36,7 +37,9 @@ public class PlayScreen implements Screen {
     public void show() {
         spritesheet = new Texture("spritesheet.png");
         tiledMap = new TmxMapLoader().load("level1.tmx");
-        camera = new OrthographicCamera(Config.V_WIDTH / 2f, Config.V_HEIGHT / 2f);
+        camera = new OrthographicCamera();
+        camera.setToOrtho(false, Config.V_WIDTH / 2f, Config.V_HEIGHT / 2f);
+        camera.update();
         viewport = new FitViewport(Config.V_WIDTH / Config.PPM, Config.V_HEIGHT / Config.PPM, camera);
         world = new World(new Vector2(0, 0), true);
         b2dr = new Box2DDebugRenderer();
@@ -46,19 +49,59 @@ public class PlayScreen implements Screen {
                 case "Player":
                     player = new Player((RectangleMapObject) object, spritesheet, world);
                     break;
-//				case "Polyline":
-//					PolylineMapObject polyline = (PolylineMapObject) object;
-//
-//					break;
                 default:
                     break;
             }
+        }
+        MapLayer collisions = tiledMap.getLayers().get("collisions");
+        for (MapObject object : collisions.getObjects()) {
+            if (object instanceof PolylineMapObject) {
+                PolylineMapObject polyline = (PolylineMapObject) object;
+                float objectX = object.getProperties().get("x", Float.class);
+                float objectY = object.getProperties().get("y", Float.class);
+                float[] vertices = polyline.getPolyline().getVertices();
+                Vector2[] worldVertices = new Vector2[vertices.length / 2];
+                for (int i = 0; i < worldVertices.length; i++) {
+                    float worldX = vertices[i * 2] + objectX;
+                    float worldY = vertices[i * 2 + 1] + objectY;
+                    worldVertices[i] = new Vector2(worldX, worldY).scl(Config.SCALE / Config.PPM);
+                }
+                ChainShape shape = new ChainShape();
+                shape.createChain(worldVertices);
+                Body body;
+                BodyDef bdef = new BodyDef();
+                bdef.type = BodyDef.BodyType.StaticBody;
+                body = world.createBody(bdef);
+                body.createFixture(shape, 1f);
+                shape.dispose();
+            }
+        }
+        MapLayer torches = tiledMap.getLayers().get("torches");
+        for (MapObject object : torches.getObjects()) {
+            RectangleMapObject rectangleMapObject = (RectangleMapObject) object;
+            PolygonShape shape = new PolygonShape();
+            BodyDef bdef = new BodyDef();
+            bdef.type = BodyDef.BodyType.StaticBody;
+            Rectangle rect = rectangleMapObject.getRectangle();
+            float width = (rect.width * Config.SCALE) / Config.PPM;
+            float height = (rect.height * Config.SCALE) / Config.PPM;
+            float x = (rect.x * Config.SCALE) / Config.PPM;
+            float y = (rect.y * Config.SCALE) / Config.PPM;
+            float centerX = x + width / 2f;
+            float centerY = y + height / 2f;
+            bdef.position.set(centerX, centerY);
+
+            Body body = world.createBody(bdef);
+
+            shape.setAsBox(width / 2f, height / 2f);
+            body.createFixture(shape, 1f);
+            shape.dispose();
         }
         tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap, Config.SCALE / Config.PPM);
         tiledMapRenderer.setView(camera);
     }
 
-    private void handleInput(float delta) {
+    private void handleInput() {
         if (Gdx.input.isKeyPressed(Input.Keys.A) && player.body.getLinearVelocity().x >= -2) {
             player.body.applyLinearImpulse(new Vector2(-Config.PLAYER_SPEED, 0), player.body.getWorldCenter(), true);
         } else if (Gdx.input.isKeyPressed(Input.Keys.D) && player.body.getLinearVelocity().x <= 2) {
@@ -76,7 +119,7 @@ public class PlayScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        handleInput(delta);
+        handleInput();
 
         world.step(1/60f, 6, 2);
 
@@ -121,6 +164,8 @@ public class PlayScreen implements Screen {
 
     @Override
     public void dispose() {
+        world.dispose();
+        spritesheet.dispose();
         tiledMap.dispose();
         tiledMapRenderer.dispose();
     }

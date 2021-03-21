@@ -38,6 +38,7 @@ public class Player extends Sprite {
         shape.setAsBox(getWidth() / 2f, getHeight() / 2f);
         fdef.shape = shape;
         body.createFixture(fdef);
+        shape.dispose();
     }
 
     public void update() {
