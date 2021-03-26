@@ -1,8 +1,12 @@
 package com.neanth.game.screens;
 
+import box2dLight.Light;
+import box2dLight.PointLight;
+import box2dLight.RayHandler;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -16,7 +20,9 @@ import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.neanth.game.Config;
@@ -29,12 +35,16 @@ public class PlayScreen implements Screen {
     OrthogonalTiledMapRenderer tiledMapRenderer;
     Player player;
     Texture spritesheet;
+    RayHandler rayHandler;
+    Light light;
 
     private World world;
     private Box2DDebugRenderer b2dr;
 
     @Override
     public void show() {
+        rayHandler = new RayHandler(world);
+        rayHandler.setAmbientLight(0.1f, 0.1f, 0.1f, 0.05f);
         spritesheet = new Texture("spritesheet.png");
         tiledMap = new TmxMapLoader().load("level1.tmx");
         camera = new OrthographicCamera();
@@ -96,20 +106,35 @@ public class PlayScreen implements Screen {
             shape.setAsBox(width / 2f, height / 2f);
             body.createFixture(shape, 1f);
             shape.dispose();
+            Light torchLight = new PointLight(rayHandler, 1000, Color.YELLOW, 2f, body.getWorldCenter().x, body.getWorldCenter().y);
         }
         tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap, Config.SCALE / Config.PPM);
         tiledMapRenderer.setView(camera);
+        light = new PointLight(rayHandler, 1000, Color.YELLOW, 3f, player.body.getWorldCenter().x, player.body.getWorldCenter().y);
+        light.attachToBody(player.body);
     }
 
     private void handleInput() {
-        if (Gdx.input.isKeyPressed(Input.Keys.A) && player.body.getLinearVelocity().x >= -2) {
-            player.body.applyLinearImpulse(new Vector2(-Config.PLAYER_SPEED, 0), player.body.getWorldCenter(), true);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.D) && player.body.getLinearVelocity().x <= 2) {
-            player.body.applyLinearImpulse(new Vector2(Config.PLAYER_SPEED, 0), player.body.getWorldCenter(), true);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.W) && player.body.getLinearVelocity().y <= 2) {
-            player.body.applyLinearImpulse(new Vector2(0, Config.PLAYER_SPEED), player.body.getWorldCenter(), true);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.S) && player.body.getLinearVelocity().y >= -2) {
-            player.body.applyLinearImpulse(new Vector2(0, -Config.PLAYER_SPEED), player.body.getWorldCenter(), true);
+//        if (Gdx.input.isKeyPressed(Input.Keys.A) && player.body.getLinearVelocity().x >= -2) {
+//            player.body.applyLinearImpulse(new Vector2(-Config.PLAYER_SPEED, 0), player.body.getWorldCenter(), true);
+//        } else if (Gdx.input.isKeyPressed(Input.Keys.D) && player.body.getLinearVelocity().x <= 2) {
+//            player.body.applyLinearImpulse(new Vector2(Config.PLAYER_SPEED, 0), player.body.getWorldCenter(), true);
+//        } else if (Gdx.input.isKeyPressed(Input.Keys.W) && player.body.getLinearVelocity().y <= 2) {
+//            player.body.applyLinearImpulse(new Vector2(0, Config.PLAYER_SPEED), player.body.getWorldCenter(), true);
+//        } else if (Gdx.input.isKeyPressed(Input.Keys.S) && player.body.getLinearVelocity().y >= -2) {
+//            player.body.applyLinearImpulse(new Vector2(0, -Config.PLAYER_SPEED), player.body.getWorldCenter(), true);
+//        }
+        if (Gdx.input.isTouched()) {
+            //Переводим экранные координаты в координаты мира
+            Vector3 touchPosition = camera.unproject(new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0));
+
+            //рассчитымаем направление от тела до положения касания
+            Vector2 direction = new Vector2(touchPosition.x, touchPosition.y);
+            direction.sub(player.body.getPosition());
+            direction.nor();
+
+            //задаем скорость игрока в ту сторону, где произошло касание
+            player.body.setLinearVelocity(direction.scl(Config.PLAYER_SPEED));
         }
 
         camera.position.set(player.body.getPosition(), 0);
@@ -139,7 +164,8 @@ public class PlayScreen implements Screen {
         batch.begin();
         player.draw(batch);
         batch.end();
-
+        rayHandler.setCombinedMatrix(camera);
+        rayHandler.updateAndRender();
     }
 
     @Override
@@ -164,6 +190,8 @@ public class PlayScreen implements Screen {
 
     @Override
     public void dispose() {
+        rayHandler.dispose();
+        light.dispose();
         world.dispose();
         spritesheet.dispose();
         tiledMap.dispose();
